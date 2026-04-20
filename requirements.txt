@@ -1,0 +1,11 @@
+torch>=2.0.0
+torch-geometric
+rdkit-pypi
+deepchem
+pennylane
+pennylane-torch
+scikit-learn
+numpy
+pandas
+matplotlib
+tqdm
