@@ -13,7 +13,7 @@ def build_vqc(n_qubits, n_layers, edge_embed=False):
     dev = qml.device("default.qubit", wires=n_qubits)
 
     if not edge_embed:
-        @qml.qnode(dev, interface="torch", diff_method="parameter-shift")
+        @qml.qnode(dev, interface="torch", diff_method="backprop")
         def circuit(inputs, weights):
             qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
             for layer in range(n_layers):
@@ -24,7 +24,7 @@ def build_vqc(n_qubits, n_layers, edge_embed=False):
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
     else:
         # Quantum edge embedding: bond features modulate CRY entangling angles
-        @qml.qnode(dev, interface="torch", diff_method="parameter-shift")
+        @qml.qnode(dev, interface="torch", diff_method="backprop")
         def circuit(inputs, weights, edge_params):
             qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
             for layer in range(n_layers):
@@ -87,20 +87,21 @@ class HybridQGNN(nn.Module):
         # Project to qubit space and normalise to [-π, π]
         q_in = torch.tanh(self.proj(emb)) * 3.14159  # (B, n_qubits)
 
-        # Quantum forward - process one sample at a time for parameter-shift
-        B = emb.size(0)
+        # Quantum forward (batched with backprop)
         if self.edge_embed:
             # Mean-pool edge features per graph
             edge_feat = data.edge_attr  # (E, 4)
             edge_batch = data.batch[data.edge_index[0]]  # (E,)
+            B = emb.size(0)
             pooled_edge = torch.zeros(B, 4, device=emb.device)
             pooled_edge.scatter_add_(0, edge_batch.unsqueeze(1).expand(-1, 4), edge_feat)
             counts = torch.bincount(edge_batch, minlength=B).float().clamp(min=1).unsqueeze(1)
             pooled_edge = pooled_edge / counts  # (B, 4)
             ep = self.edge_proj(pooled_edge)  # (B, n_qubits-1)
+            # Note: edge_embed variant still needs sample-by-sample due to variable args
             q_out = torch.stack([self.vqc(q_in[i], ep[i]) for i in range(B)])
         else:
-            q_out = torch.stack([self.vqc(q_in[i]) for i in range(B)])
+            q_out = self.vqc(q_in)  # (B, n_qubits)
 
         combined = torch.cat([emb, q_out], dim=-1)
         return self.classifier(combined)

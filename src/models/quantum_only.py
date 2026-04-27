@@ -11,7 +11,7 @@ from torch_geometric.nn import global_mean_pool
 def build_vqc(n_qubits, n_layers):
     dev = qml.device("default.qubit", wires=n_qubits)
 
-    @qml.qnode(dev, interface="torch", diff_method="parameter-shift")
+    @qml.qnode(dev, interface="torch", diff_method="backprop")
     def circuit(inputs, weights):
         qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
         for layer in range(n_layers):
@@ -52,8 +52,7 @@ class QuantumOnly(nn.Module):
         # Project to qubit space and normalize to [-π, π]
         q_in = torch.tanh(self.proj(x_pooled)) * 3.14159  # (B, n_qubits)
 
-        # Quantum forward - process one sample at a time for parameter-shift
-        B = q_in.size(0)
-        q_out = torch.stack([self.vqc(q_in[i]) for i in range(B)])
+        # Quantum forward (batched with backprop)
+        q_out = self.vqc(q_in)  # (B, n_qubits)
 
         return self.classifier(q_out)
