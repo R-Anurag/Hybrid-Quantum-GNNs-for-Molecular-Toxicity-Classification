@@ -125,12 +125,18 @@ class HybridQGNN(nn.Module):
         if self.edge_embed:
             # Mean-pool edge features per graph
             edge_feat = data.edge_attr  # (E, 4)
-            edge_batch = data.batch[data.edge_index[0]]  # (E,)
-            B = emb.size(0)
-            pooled_edge = torch.zeros(B, 4, device=emb.device)
-            pooled_edge.scatter_add_(0, edge_batch.unsqueeze(1).expand(-1, 4), edge_feat)
-            counts = torch.bincount(edge_batch, minlength=B).float().clamp(min=1).unsqueeze(1)
-            pooled_edge = pooled_edge / counts  # (B, 4)
+            # Handle both single graph (batch=None) and batched graphs
+            if data.batch is None:
+                # Single graph: mean over all edges
+                pooled_edge = edge_feat.mean(dim=0, keepdim=True)  # (1, 4)
+            else:
+                # Batched graphs: mean per graph
+                edge_batch = data.batch[data.edge_index[0]]  # (E,)
+                B = emb.size(0)
+                pooled_edge = torch.zeros(B, 4, device=emb.device)
+                pooled_edge.scatter_add_(0, edge_batch.unsqueeze(1).expand(-1, 4), edge_feat)
+                counts = torch.bincount(edge_batch, minlength=B).float().clamp(min=1).unsqueeze(1)
+                pooled_edge = pooled_edge / counts  # (B, 4)
             ep = torch.tanh(self.edge_proj(pooled_edge)) * self.input_scale  # (B, n_qubits-1)
             # Concatenate node and edge features for VQC input
             vqc_input = torch.cat([q_in, ep], dim=-1)  # (B, 2*n_qubits-1)
