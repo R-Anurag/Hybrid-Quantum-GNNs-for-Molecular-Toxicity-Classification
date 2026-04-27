@@ -31,8 +31,8 @@ def test_model(model_name, model, batch):
             out = model(batch)
         print(f"✓ Input shape: x={batch.x.shape}, edge_index={batch.edge_index.shape}")
         print(f"✓ Output shape: {out.shape}")
-        print(f"✓ Expected: ({batch.num_graphs}, {batch.y.shape[1]})")
-        assert out.shape == (batch.num_graphs, batch.y.shape[1]), f"Shape mismatch!"
+        print(f"✓ Expected: ({batch.num_graphs}, {NUM_TASKS})")
+        assert out.shape == (batch.num_graphs, NUM_TASKS), f"Shape mismatch!"
         print(f"✓ {model_name} PASSED")
         return True
     except Exception as e:
