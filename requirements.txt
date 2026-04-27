@@ -1,10 +1,10 @@
 torch>=2.0.0
 torch-geometric
 rdkit
-deepchem>=2.8.0
-pennylane
+requests
 scikit-learn
 numpy
 pandas
 matplotlib
 tqdm
+pennylane

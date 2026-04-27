@@ -7,7 +7,6 @@ import torch
 from torch_geometric.data import Data
 from rdkit import Chem
 from rdkit.Chem import rdchem
-import deepchem as dc
 from sklearn.utils.class_weight import compute_class_weight
 
 
@@ -77,33 +76,63 @@ def smiles_to_data(smiles, labels):
 def load_dataset(name="tox21"):
     """Returns list of PyG Data objects and per-task class weights."""
     import pandas as pd
+    import requests
+    from pathlib import Path
     
-    data_dir = dc.utils.data_utils.get_data_dir()
+    # Dataset metadata
+    DATASETS = {
+        "tox21": {
+            "url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+            "tasks": ['NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD',
+                     'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53'],
+        },
+        "clintox": {
+            "url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/clintox.csv.gz",
+            "tasks": ['FDA_APPROVED', 'CT_TOX'],
+        },
+    }
     
-    if name == "tox21":
-        url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/datasets/tox21.csv.gz'
-        dataset_file = dc.utils.data_utils.download_url(url, data_dir)
-        df = pd.read_csv(dataset_file)
-        tasks = ['NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD',
-                 'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53']
-    elif name == "clintox":
-        url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/datasets/clintox.csv.gz'
-        dataset_file = dc.utils.data_utils.download_url(url, data_dir)
-        df = pd.read_csv(dataset_file)
-        tasks = ['FDA_APPROVED', 'CT_TOX']
+    if name not in DATASETS:
+        raise ValueError(f"Unknown dataset: {name}. Choose from {list(DATASETS.keys())}")
+    
+    config = DATASETS[name]
+    
+    # Setup cache directory
+    cache_dir = Path.home() / ".cache" / "hqgnn"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"{name}.csv.gz"
+    
+    # Download if not cached
+    if not cache_file.exists():
+        print(f"Downloading {name} dataset...")
+        response = requests.get(config["url"], timeout=60)
+        response.raise_for_status()
+        cache_file.write_bytes(response.content)
+        print(f"✓ Downloaded to {cache_file}")
     else:
-        raise ValueError(f"Unknown dataset: {name}")
-
+        print(f"✓ Using cached dataset: {cache_file}")
+    
+    # Load CSV
+    df = pd.read_csv(cache_file)
+    tasks = config["tasks"]
+    
+    # Convert to PyG Data objects
     data_list = []
+    failed = 0
     for _, row in df.iterrows():
         smiles = row['smiles']
         labels = row[tasks].values
         d = smiles_to_data(smiles, labels)
         if d is not None:
             data_list.append(d)
-
+        else:
+            failed += 1
+    
+    if failed > 0:
+        print(f"⚠ Skipped {failed}/{len(df)} invalid SMILES")
+    
     # Per-task class weights (ignore NaN)
-    y_all = np.array([d.y.numpy() for d in data_list])  # (N, T)
+    y_all = np.array([d.y.numpy() for d in data_list])
     num_tasks = y_all.shape[1]
     class_weights = []
     for t in range(num_tasks):
@@ -115,7 +144,7 @@ def load_dataset(name="tox21"):
             continue
         w = compute_class_weight("balanced", classes=classes, y=valid)
         class_weights.append(torch.tensor(w, dtype=torch.float))
-
+    
     return data_list, class_weights, tasks
 
 
