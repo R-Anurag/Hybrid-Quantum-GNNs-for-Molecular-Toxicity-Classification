@@ -12,10 +12,12 @@ from models import GCN, HybridQGNN, QuantumOnly
 from evaluate import cross_validate
 
 DEVICE = "cpu"
-EPOCHS = 50  # Increased from 10 for proper convergence
+EPOCHS = 100
 LR = 1e-3
 BATCH = 64
 N_FOLDS = 5
+EARLY_STOP_PATIENCE = 20
+WEIGHT_DECAY = 1e-4
 IN_CHANNELS = 10  # atom feature dim (see data_pipeline.py)
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "results")
@@ -27,7 +29,7 @@ def run_dataset(dataset_name):
     print(f"Dataset: {dataset_name.upper()}")
     print(f"{'='*60}")
 
-    data_list, class_weights, tasks = load_dataset(dataset_name)
+    data_list, _, tasks = load_dataset(dataset_name)
     num_tasks = len(tasks)
     print(f"Loaded {len(data_list)} molecules, {num_tasks} tasks")
 
@@ -56,14 +58,25 @@ def run_dataset(dataset_name):
         del m
 
         results = cross_validate(
-            model_fn, data_list, class_weights,
+            model_fn, data_list,
             n_splits=N_FOLDS, epochs=EPOCHS, lr=LR,
             batch_size=BATCH, device=DEVICE, verbose=False,
+            early_stop_patience=EARLY_STOP_PATIENCE,
+            weight_decay=WEIGHT_DECAY,
         )
-        row = {"Model": name, "Dataset": dataset_name, "Params": n_params, **results}
+        row = {
+            "Model": name,
+            "Dataset": dataset_name,
+            "Params": n_params,
+            "auc_mean": results["auc_mean"],
+            "auc_std": results["auc_std"],
+            "time_mean": results["time_mean"],
+            "epochs_mean": results["epochs_mean"],
+            "epochs_std": results["epochs_std"],
+        }
         rows.append(row)
         print(f"  AUC={results['auc_mean']:.4f}±{results['auc_std']:.4f}  "
-              f"F1={results['f1_mean']:.4f}±{results['f1_std']:.4f}  "
+              f"epochs={results['epochs_mean']:.1f}±{results['epochs_std']:.1f}  "
               f"time/epoch={results['time_mean']:.2f}s")
 
     return rows

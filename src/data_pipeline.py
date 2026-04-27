@@ -79,6 +79,26 @@ def smiles_to_data(smiles, labels):
 
 # ── Dataset loaders ──────────────────────────────────────────────────────────
 
+def compute_class_weights(data_list):
+    """Compute per-task class weights from a list of PyG Data objects."""
+    y_all = np.array([d.y.numpy() for d in data_list])
+    if y_all.ndim == 1:
+        y_all = y_all.reshape(-1, 1)
+
+    class_weights = []
+    for t in range(y_all.shape[1]):
+        col = y_all[:, t]
+        valid = col[~np.isnan(col)].astype(int)
+        classes = np.unique(valid)
+        weights = torch.ones(2, dtype=torch.float)
+        if len(classes) == 2:
+            computed = compute_class_weight("balanced", classes=classes, y=valid)
+            for cls, weight in zip(classes, computed):
+                weights[int(cls)] = float(weight)
+        class_weights.append(weights)
+
+    return class_weights
+
 def load_dataset(name="tox21"):
     """Returns list of PyG Data objects and per-task class weights."""
     import pandas as pd
@@ -138,18 +158,7 @@ def load_dataset(name="tox21"):
         print(f"⚠ Skipped {failed}/{len(df)} invalid SMILES")
     
     # Per-task class weights (ignore NaN)
-    y_all = np.array([d.y.numpy() for d in data_list])
-    num_tasks = y_all.shape[1]
-    class_weights = []
-    for t in range(num_tasks):
-        col = y_all[:, t]
-        valid = col[~np.isnan(col)].astype(int)
-        classes = np.unique(valid)
-        if len(classes) < 2:
-            class_weights.append(torch.tensor([1.0, 1.0]))
-            continue
-        w = compute_class_weight("balanced", classes=classes, y=valid)
-        class_weights.append(torch.tensor(w, dtype=torch.float))
+    class_weights = compute_class_weights(data_list)
     
     return data_list, class_weights, tasks
 

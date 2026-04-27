@@ -65,7 +65,7 @@ def main():
     checks = check_file_content(
         os.path.join(base_path, "run_experiments.py"),
         [
-            ("Epochs set to 50", "EPOCHS = 50"),
+            ("Epochs set to 100", "EPOCHS = 100"),
         ]
     )
     for name, passed in checks:
@@ -78,9 +78,24 @@ def main():
     checks = check_file_content(
         os.path.join(base_path, "train.py"),
         [
-            ("Early stop patience defined", "early_stop_patience = 15"),
+            ("Early stop patience defined", "early_stop_patience=20"),
             ("Patience counter", "patience_counter"),
             ("Early stop check", "if patience_counter >= early_stop_patience"),
+        ]
+    )
+    for name, passed in checks:
+        status = "[PASS]" if passed else "[FAIL]"
+        print(f"  {status} {name}")
+        all_checks.append(passed)
+
+    # Fix 3c: ROC-AUC model selection
+    print("\n[Fix 3c] ROC-AUC Model Selection")
+    checks = check_file_content(
+        os.path.join(base_path, "train.py"),
+        [
+            ("ROC-AUC imported", "roc_auc_score"),
+            ("Validation AUC tracked", "\"val_auc\""),
+            ("Scheduler maximizes metric", "mode=\"max\""),
         ]
     )
     for name, passed in checks:
@@ -95,6 +110,7 @@ def main():
         [
             ("Gradient clipping added", "clip_grad_norm_"),
             ("Max norm set", "max_norm=1.0"),
+            ("AdamW optimizer", "torch.optim.AdamW"),
         ]
     )
     for name, passed in checks:
@@ -181,7 +197,7 @@ def main():
         print("\nKey improvements:")
         print("  [CRITICAL] Quantum output scaling - quantum layer will contribute")
         print("  [CRITICAL] QuantumOnly redesigned - now preserves graph structure")
-        print("  [CRITICAL] 50 epochs + early stopping - proper convergence")
+        print("  [CRITICAL] 100 epochs + ROC-AUC early stopping - proper convergence")
         print("  [CRITICAL] Gradient clipping - training stability")
         print("  [MAJOR] Improved quantum circuits - stronger expressivity")
         print("  [MAJOR] Learnable normalization - optimal scaling")

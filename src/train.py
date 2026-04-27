@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.loader import DataLoader
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
 
 def masked_bce_loss(pred, target, class_weights, device):
@@ -58,40 +59,79 @@ def train_epoch(model, loader, optimizer, class_weights, device):
 
 
 @torch.no_grad()
-def eval_epoch(model, loader, class_weights, device):
+def eval_epoch(model, loader, class_weights, device, return_predictions=False):
     model.eval()
     total_loss = 0.0
+    preds, targets = [], []
     for batch in loader:
         batch = batch.to(device)
         out = model(batch)
         loss = masked_bce_loss(out, batch.y, class_weights, device)
         total_loss += loss.item()
-    return total_loss / len(loader)
+
+        if return_predictions:
+            preds.append(torch.sigmoid(out).cpu().numpy())
+            target = batch.y.cpu().numpy().reshape(out.shape[0], -1)
+            targets.append(target)
+
+    mean_loss = total_loss / len(loader)
+    if return_predictions:
+        return mean_loss, np.vstack(preds), np.vstack(targets)
+    return mean_loss
 
 
-def train(model, train_data, val_data, class_weights, epochs=50, lr=1e-3,
-          batch_size=32, device="cpu", verbose=True, checkpoint_dir=None, model_name="model"):
+def mean_roc_auc(preds, targets):
+    """Mean ROC-AUC across valid tasks, ignoring NaN labels."""
+    aucs = []
+    for t in range(targets.shape[1]):
+        col_t = targets[:, t]
+        col_p = preds[:, t]
+        mask = ~np.isnan(col_t)
+        if mask.sum() == 0 or len(np.unique(col_t[mask])) < 2:
+            continue
+        aucs.append(roc_auc_score(col_t[mask].astype(int), col_p[mask]))
+    return float(np.mean(aucs)) if aucs else float("nan")
+
+
+def train(model, train_data, val_data, class_weights, epochs=100, lr=1e-3,
+          batch_size=32, device="cpu", verbose=True, checkpoint_dir=None,
+          model_name="model", early_stop_patience=20, weight_decay=1e-4):
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="max", patience=5, factor=0.5
+    )
 
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size)
 
-    best_val, best_state = float("inf"), None
+    best_score, best_state = float("-inf"), None
+    best_epoch = 0
     patience_counter = 0
-    early_stop_patience = 15  # Stop if no improvement for 15 epochs
-    history = {"train_loss": [], "val_loss": []}
+    min_delta = 1e-4
+    history = {"train_loss": [], "val_loss": [], "val_auc": []}
     
     for epoch in range(1, epochs + 1):
         tr_loss = train_epoch(model, train_loader, optimizer, class_weights, device)
-        val_loss = eval_epoch(model, val_loader, class_weights, device)
+        val_loss, val_preds, val_targets = eval_epoch(
+            model, val_loader, class_weights, device, return_predictions=True
+        )
+        val_auc = mean_roc_auc(val_preds, val_targets)
+        if np.isfinite(val_auc):
+            score = val_auc
+        elif np.isfinite(val_loss):
+            score = -val_loss
+        else:
+            score = best_score
+
         history["train_loss"].append(tr_loss)
         history["val_loss"].append(val_loss)
-        scheduler.step(val_loss)
+        history["val_auc"].append(val_auc)
+        scheduler.step(score)
         
-        if val_loss < best_val:
-            best_val = val_loss
+        if best_state is None or score > best_score + min_delta:
+            best_score = score
+            best_epoch = epoch
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
             patience_counter = 0
             if checkpoint_dir:
@@ -106,7 +146,11 @@ def train(model, train_data, val_data, class_weights, epochs=50, lr=1e-3,
                 break
         
         if verbose and epoch % 10 == 0:
-            print(f"  Epoch {epoch:3d} | train={tr_loss:.4f} | val={val_loss:.4f}")
+            print(
+                f"  Epoch {epoch:3d} | train={tr_loss:.4f} | "
+                f"val={val_loss:.4f} | val_auc={val_auc:.4f}"
+            )
 
     model.load_state_dict(best_state)
+    history["best_epoch"] = best_epoch
     return model, history
