@@ -50,6 +50,10 @@ def smiles_to_data(smiles, labels):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
+    
+    # Skip molecules with no bonds (isolated atoms)
+    if mol.GetNumBonds() == 0:
+        return None
 
     x = torch.tensor([atom_features(a) for a in mol.GetAtoms()], dtype=torch.float)
 
@@ -63,6 +67,8 @@ def smiles_to_data(smiles, labels):
     if edge_index:
         edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
         edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        # Validate edge indices
+        assert edge_index.max() < x.size(0), "Invalid edge index detected"
     else:
         edge_index = torch.zeros((2, 0), dtype=torch.long)
         edge_attr = torch.zeros((0, 4), dtype=torch.float)

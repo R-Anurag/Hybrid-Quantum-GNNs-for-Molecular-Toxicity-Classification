@@ -12,7 +12,7 @@ from models import GCN, HybridQGNN, QuantumOnly
 from evaluate import cross_validate
 
 DEVICE = "cpu"
-EPOCHS = 10
+EPOCHS = 50  # Increased from 10 for proper convergence
 LR = 1e-3
 BATCH = 64
 N_FOLDS = 5

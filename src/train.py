@@ -15,23 +15,30 @@ def masked_bce_loss(pred, target, class_weights, device):
         target = target.reshape(pred.shape[0], -1)
     if pred.dim() == 1:
         pred = pred.unsqueeze(1)
-    total_loss = torch.tensor(0.0, device=device, requires_grad=True)
-    count = 0
+    
+    losses = []
     for t in range(target.shape[1]):
         col_t = target[:, t]
         col_p = pred[:, t]
         mask = ~torch.isnan(col_t)
         if mask.sum() == 0:
             continue
+        
         y = col_t[mask]
         p = col_p[mask]
         w = class_weights[t].to(device)
         # per-sample weight: w[0] for class 0, w[1] for class 1
         sample_w = torch.where(y == 1, w[1], w[0])
-        loss = nn.functional.binary_cross_entropy_with_logits(p, y, weight=sample_w)
-        total_loss = total_loss + loss
-        count += 1
-    return total_loss / max(count, 1)
+        
+        loss = nn.functional.binary_cross_entropy_with_logits(
+            p, y, weight=sample_w, reduction='mean'
+        )
+        losses.append(loss)
+    
+    if len(losses) == 0:
+        return torch.tensor(0.0, device=device, requires_grad=True)
+    
+    return torch.stack(losses).mean()
 
 
 def train_epoch(model, loader, optimizer, class_weights, device):
@@ -43,6 +50,8 @@ def train_epoch(model, loader, optimizer, class_weights, device):
         out = model(batch)
         loss = masked_bce_loss(out, batch.y, class_weights, device)
         loss.backward()
+        # Gradient clipping to prevent exploding gradients in quantum circuits
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         total_loss += loss.item()
     return total_loss / len(loader)
@@ -70,20 +79,32 @@ def train(model, train_data, val_data, class_weights, epochs=50, lr=1e-3,
     val_loader = DataLoader(val_data, batch_size=batch_size)
 
     best_val, best_state = float("inf"), None
+    patience_counter = 0
+    early_stop_patience = 15  # Stop if no improvement for 15 epochs
     history = {"train_loss": [], "val_loss": []}
+    
     for epoch in range(1, epochs + 1):
         tr_loss = train_epoch(model, train_loader, optimizer, class_weights, device)
         val_loss = eval_epoch(model, val_loader, class_weights, device)
         history["train_loss"].append(tr_loss)
         history["val_loss"].append(val_loss)
         scheduler.step(val_loss)
+        
         if val_loss < best_val:
             best_val = val_loss
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            patience_counter = 0
             if checkpoint_dir:
                 import os
                 os.makedirs(checkpoint_dir, exist_ok=True)
                 torch.save(best_state, os.path.join(checkpoint_dir, f"{model_name}.pt"))
+        else:
+            patience_counter += 1
+            if patience_counter >= early_stop_patience:
+                if verbose:
+                    print(f"  Early stopping at epoch {epoch}")
+                break
+        
         if verbose and epoch % 10 == 0:
             print(f"  Epoch {epoch:3d} | train={tr_loss:.4f} | val={val_loss:.4f}")
 
