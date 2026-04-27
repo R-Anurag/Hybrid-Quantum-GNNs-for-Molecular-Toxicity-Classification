@@ -77,9 +77,9 @@ def smiles_to_data(smiles, labels):
 def load_dataset(name="tox21"):
     """Returns list of PyG Data objects and per-task class weights."""
     if name == "tox21":
-        tasks, datasets, _ = dc.molnet.load_tox21(featurizer="Raw", splitter=None)
+        tasks, datasets, _ = dc.molnet.load_tox21(featurizer=dc.feat.DummyFeaturizer(), splitter=None)
     elif name == "clintox":
-        tasks, datasets, _ = dc.molnet.load_clintox(featurizer="Raw", splitter=None)
+        tasks, datasets, _ = dc.molnet.load_clintox(featurizer=dc.feat.DummyFeaturizer(), splitter=None)
     else:
         raise ValueError(f"Unknown dataset: {name}")
 
