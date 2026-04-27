@@ -45,10 +45,11 @@ def build_vqc_edge(n_qubits, n_layers):
     dev = qml.device("default.qubit", wires=n_qubits)
     
     @qml.qnode(dev, interface="torch", diff_method="backprop")
-    def circuit(inputs, weights):
+    def circuit_edge_v2(inputs, weights):  # Renamed to force cache invalidation
+        # TorchLayer processes each sample individually, so inputs is 1D: (2*n_qubits-1,)
         # inputs: [node_features (n_qubits) || edge_angles (n_qubits-1)]
-        node_inputs = inputs[:n_qubits]
-        edge_angles = inputs[n_qubits:]
+        node_inputs = inputs[:n_qubits]  # First n_qubits elements
+        edge_angles = inputs[n_qubits:]  # Remaining n_qubits-1 elements
         
         # Manual angle embedding for node features only
         for i in range(n_qubits):
@@ -61,13 +62,14 @@ def build_vqc_edge(n_qubits, n_layers):
                 qml.RZ(weights[layer, i, 1], wires=i)
             
             # Edge-controlled entanglement
-            for i in range(n_qubits - 1):
-                qml.CRY(edge_angles[i], wires=[i, i + 1])
+            for i in range(len(edge_angles)):
+                if i < n_qubits - 1:  # Safety check
+                    qml.CRY(edge_angles[i], wires=[i, i + 1])
         
         return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
     
     weight_shapes = {"weights": (n_layers, n_qubits, 2)}
-    return circuit, weight_shapes
+    return circuit_edge_v2, weight_shapes
 
 
 class HybridQGNN(nn.Module):
@@ -142,6 +144,8 @@ class HybridQGNN(nn.Module):
             ep = torch.tanh(self.edge_proj(pooled_edge)) * self.input_scale  # (B, n_qubits-1)
             # Concatenate node and edge features for VQC input
             vqc_input = torch.cat([q_in, ep], dim=-1)  # (B, 2*n_qubits-1)
+            # Debug: print shapes
+            # print(f"DEBUG: q_in shape={q_in.shape}, ep shape={ep.shape}, vqc_input shape={vqc_input.shape}")
             q_out = self.vqc(vqc_input)  # (B, n_qubits)
         else:
             q_out = self.vqc(q_in)  # (B, n_qubits)
