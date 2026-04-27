@@ -11,6 +11,10 @@ import numpy as np
 
 def masked_bce_loss(pred, target, class_weights, device):
     """BCE loss that ignores NaN labels. class_weights: list of (2,) tensors."""
+    if target.dim() == 1:
+        target = target.reshape(pred.shape[0], -1)
+    if pred.dim() == 1:
+        pred = pred.unsqueeze(1)
     total_loss = torch.tensor(0.0, device=device, requires_grad=True)
     count = 0
     for t in range(target.shape[1]):
@@ -57,7 +61,7 @@ def eval_epoch(model, loader, class_weights, device):
 
 
 def train(model, train_data, val_data, class_weights, epochs=50, lr=1e-3,
-          batch_size=32, device="cpu", verbose=True):
+          batch_size=32, device="cpu", verbose=True, checkpoint_dir=None, model_name="model"):
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
@@ -66,15 +70,22 @@ def train(model, train_data, val_data, class_weights, epochs=50, lr=1e-3,
     val_loader = DataLoader(val_data, batch_size=batch_size)
 
     best_val, best_state = float("inf"), None
+    history = {"train_loss": [], "val_loss": []}
     for epoch in range(1, epochs + 1):
         tr_loss = train_epoch(model, train_loader, optimizer, class_weights, device)
         val_loss = eval_epoch(model, val_loader, class_weights, device)
+        history["train_loss"].append(tr_loss)
+        history["val_loss"].append(val_loss)
         scheduler.step(val_loss)
         if val_loss < best_val:
             best_val = val_loss
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            if checkpoint_dir:
+                import os
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                torch.save(best_state, os.path.join(checkpoint_dir, f"{model_name}.pt"))
         if verbose and epoch % 10 == 0:
             print(f"  Epoch {epoch:3d} | train={tr_loss:.4f} | val={val_loss:.4f}")
 
     model.load_state_dict(best_state)
-    return model
+    return model, history

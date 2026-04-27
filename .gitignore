@@ -14,10 +14,11 @@ venv/
 .venv/
 env/
 .env/
+myvenv311/
+myvenv/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
 
 # Model checkpoints & results (large files)
 checkpoints/*.pt

@@ -68,7 +68,7 @@ def smiles_to_data(smiles, labels):
         edge_index = torch.zeros((2, 0), dtype=torch.long)
         edge_attr = torch.zeros((0, 4), dtype=torch.float)
 
-    y = torch.tensor(labels, dtype=torch.float)
+    y = torch.tensor(labels, dtype=torch.float).reshape(-1)
     return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
 
 

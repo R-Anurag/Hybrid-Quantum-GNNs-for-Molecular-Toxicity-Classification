@@ -8,13 +8,13 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 from data_pipeline import load_dataset
-from models import GCN, HybridQGNN
+from models import GCN, HybridQGNN, QuantumOnly
 from evaluate import cross_validate
 
 DEVICE = "cpu"
-EPOCHS = 50
+EPOCHS = 10
 LR = 1e-3
-BATCH = 32
+BATCH = 64
 N_FOLDS = 5
 IN_CHANNELS = 10  # atom feature dim (see data_pipeline.py)
 
@@ -34,6 +34,8 @@ def run_dataset(dataset_name):
     variants = {
         "Classical GCN": lambda: GCN(IN_CHANNELS, hidden=64, embed_dim=32,
                                       num_tasks=num_tasks),
+        "Quantum-only 4-qubit": lambda: QuantumOnly(IN_CHANNELS, n_qubits=4, n_layers=2,
+                                                     num_tasks=num_tasks),
         "Hybrid 4-qubit": lambda: HybridQGNN(IN_CHANNELS, gcn_hidden=64, gcn_embed=32,
                                               n_qubits=4, n_layers=2,
                                               num_tasks=num_tasks),
@@ -47,7 +49,7 @@ def run_dataset(dataset_name):
 
     rows = []
     for name, model_fn in variants.items():
-        print(f"\n▶ {name}")
+        print(f"\n>> {name}")
         # Count params
         m = model_fn()
         n_params = sum(p.numel() for p in m.parameters() if p.requires_grad)

@@ -1,9 +1,8 @@
 torch>=2.0.0
 torch-geometric
-rdkit-pypi
-deepchem
+rdkit
+deepchem>=2.8.0
 pennylane
-pennylane-torch
 scikit-learn
 numpy
 pandas

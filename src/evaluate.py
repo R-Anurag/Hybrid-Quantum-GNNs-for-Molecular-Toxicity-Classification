@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import roc_auc_score, f1_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 from train import train
 
@@ -23,7 +23,8 @@ def predict(model, data_list, batch_size=32, device="cpu"):
         batch = batch.to(device)
         out = torch.sigmoid(model(batch))
         preds.append(out.cpu().numpy())
-        targets.append(batch.y.cpu().numpy())
+        t = batch.y.cpu().numpy()
+        targets.append(t.reshape(out.shape[0], -1))
     return np.vstack(preds), np.vstack(targets)
 
 
@@ -50,17 +51,35 @@ def compute_metrics(preds, targets):
 # ── 5-fold CV ────────────────────────────────────────────────────────────────
 
 def cross_validate(model_fn, data_list, class_weights, n_splits=5,
-                   epochs=50, lr=1e-3, batch_size=32, device="cpu", verbose=True):
+                   epochs=50, lr=1e-3, batch_size=32, device="cpu", verbose=True,
+                   checkpoint_dir=None, model_name="model", dataset_name="dataset"):
     """
     model_fn: callable() → fresh model instance
     Returns dict with mean/std for auc, f1, epoch_time.
     """
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-    indices = np.arange(len(data_list))
+    # Create stratification labels: use first task or composite for multi-task
+    y_all = np.array([d.y.numpy() for d in data_list])
+    if y_all.ndim == 1:
+        y_all = y_all.reshape(-1, 1)
+    # Use first task for stratification, handle NaN
+    strat_labels = y_all[:, 0]
+    strat_labels = np.nan_to_num(strat_labels, nan=-1).astype(int)
+    
+    # Use StratifiedKFold if we have valid labels
+    if len(np.unique(strat_labels[strat_labels >= 0])) > 1:
+        kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        indices = np.arange(len(data_list))
+        splits = kf.split(indices, strat_labels)
+    else:
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        indices = np.arange(len(data_list))
+        splits = kf.split(indices)
+    
     aucs, f1s, times = [], [], []
+    histories = []
 
-    for fold, (train_idx, test_idx) in enumerate(kf.split(indices), 1):
-        print(f"\n── Fold {fold}/{n_splits} ──")
+    for fold, (train_idx, test_idx) in enumerate(splits, 1):
+        print(f"\n-- Fold {fold}/{n_splits} --")
         train_data = [data_list[i] for i in train_idx]
         test_data = [data_list[i] for i in test_idx]
 
@@ -71,9 +90,11 @@ def cross_validate(model_fn, data_list, class_weights, n_splits=5,
 
         model = model_fn()
         t0 = time.time()
-        model = train(model, train_data, val_data, class_weights,
-                      epochs=epochs, lr=lr, batch_size=batch_size,
-                      device=device, verbose=verbose)
+        ckpt_name = f"{dataset_name}_{model_name}_fold{fold}" if checkpoint_dir else None
+        model, history = train(model, train_data, val_data, class_weights,
+                               epochs=epochs, lr=lr, batch_size=batch_size,
+                               device=device, verbose=verbose,
+                               checkpoint_dir=checkpoint_dir, model_name=ckpt_name)
         epoch_time = (time.time() - t0) / epochs
 
         preds, targets = predict(model, test_data, batch_size=batch_size, device=device)
@@ -81,10 +102,12 @@ def cross_validate(model_fn, data_list, class_weights, n_splits=5,
         aucs.append(auc)
         f1s.append(f1)
         times.append(epoch_time)
+        histories.append(history)
         print(f"  ROC-AUC={auc:.4f}  F1={f1:.4f}  time/epoch={epoch_time:.2f}s")
 
     return {
         "auc_mean": np.mean(aucs), "auc_std": np.std(aucs),
         "f1_mean": np.mean(f1s),  "f1_std": np.std(f1s),
         "time_mean": np.mean(times),
+        "histories": histories,
     }
