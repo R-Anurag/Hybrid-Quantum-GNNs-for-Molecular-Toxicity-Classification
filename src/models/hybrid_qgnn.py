@@ -48,8 +48,10 @@ def build_vqc_edge(n_qubits, n_layers):
     def circuit_edge_v2(inputs, weights):  # Renamed to force cache invalidation
         # TorchLayer processes each sample individually, so inputs is 1D: (2*n_qubits-1,)
         # inputs: [node_features (n_qubits) || edge_angles (n_qubits-1)]
+        print(f"CIRCUIT DEBUG: inputs shape={inputs.shape}, inputs={inputs}")
         node_inputs = inputs[:n_qubits]  # First n_qubits elements
         edge_angles = inputs[n_qubits:]  # Remaining n_qubits-1 elements
+        print(f"CIRCUIT DEBUG: node_inputs shape={node_inputs.shape}, edge_angles shape={edge_angles.shape}")
         
         # Manual angle embedding for node features only
         for i in range(n_qubits):
@@ -145,7 +147,8 @@ class HybridQGNN(nn.Module):
             # Concatenate node and edge features for VQC input
             vqc_input = torch.cat([q_in, ep], dim=-1)  # (B, 2*n_qubits-1)
             # Debug: print shapes
-            # print(f"DEBUG: q_in shape={q_in.shape}, ep shape={ep.shape}, vqc_input shape={vqc_input.shape}")
+            print(f"DEBUG: q_in shape={q_in.shape}, ep shape={ep.shape}, vqc_input shape={vqc_input.shape}")
+            print(f"DEBUG: vqc_input={vqc_input}")
             q_out = self.vqc(vqc_input)  # (B, n_qubits)
         else:
             q_out = self.vqc(q_in)  # (B, n_qubits)
