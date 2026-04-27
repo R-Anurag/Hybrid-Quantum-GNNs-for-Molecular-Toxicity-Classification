@@ -24,11 +24,11 @@ def main():
     checks = [
         ("Separate build_vqc function exists", "def build_vqc(n_qubits, n_layers):"),
         ("Separate build_vqc_edge function exists", "def build_vqc_edge(n_qubits, n_layers):"),
-        ("Edge circuit splits input", "node_inputs = inputs[:n_qubits]"),
-        ("Edge circuit extracts edge angles", "edge_angles = inputs[n_qubits:]"),
+        ("Edge circuit splits feature axis", "node_inputs = inputs[..., :n_qubits]"),
+        ("Edge circuit extracts edge angles", "edge_angles = inputs[..., n_qubits:]"),
         ("AngleEmbedding uses only node inputs", "qml.AngleEmbedding(node_inputs, wires=range(n_qubits)"),
-        ("CRY gates use edge angles", "qml.CRY(edge_angles[i]"),
-        ("Standard circuit uses CNOT", "qml.CNOT(wires=[i, i + 1])"),
+        ("CRY gates use batched edge angles", "qml.CRY(edge_angles[..., i]"),
+        ("Standard circuit uses CNOT", "qml.CNOT(wires=[i, j])"),
         ("Edge projection layer exists", "self.edge_proj = nn.Linear(4, n_qubits - 1)"),
     ]
     
@@ -49,8 +49,8 @@ def main():
     print("    Output: 4 expectation values")
     print("\n  Edge-embedded VQC:")
     print("    Input:  7 features (4 node + 3 edge)")
-    print("    Split:  inputs[:4] for AngleEmbedding")
-    print("            inputs[4:7] for CRY gates")
+    print("    Split:  inputs[..., :4] for AngleEmbedding")
+    print("            inputs[..., 4:7] for CRY gates")
     print("    Output: 4 expectation values")
     
     print("\n" + "="*60)
@@ -59,11 +59,11 @@ def main():
         print("\nThe bug has been fixed!")
         print("\nKey changes:")
         print("  1. Created separate build_vqc_edge() function")
-        print("  2. Edge variant splits input: node_inputs = inputs[:n_qubits]")
+        print("  2. Edge variant splits the feature axis: node_inputs = inputs[..., :n_qubits]")
         print("  3. Only node_inputs passed to AngleEmbedding")
         print("  4. Edge angles control CRY gates")
         print("\nThis fixes the error:")
-        print("  ValueError: Features must be of length 4 or less; got length 7")
+        print("  RuntimeError: shape '[64, -1]' is invalid for input of size 7")
     else:
         print("RESULT: SOME CHECKS FAILED")
         print("\nPlease review the hybrid_qgnn.py file")

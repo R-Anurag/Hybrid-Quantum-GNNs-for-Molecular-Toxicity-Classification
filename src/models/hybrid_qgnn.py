@@ -46,18 +46,12 @@ def build_vqc_edge(n_qubits, n_layers):
     
     @qml.qnode(dev, interface="torch", diff_method="backprop")
     def circuit_edge_v2(inputs, weights):  # Renamed to force cache invalidation
-        # TorchLayer may pass 2D tensors (batch_size, features) or 1D (features,)
-        # Flatten to 1D if needed
-        if inputs.ndim == 2:
-            inputs = inputs.squeeze(0)  # (1, 7) -> (7,)
+        # Split the feature axis so both 1D and batched TorchLayer inputs work.
+        node_inputs = inputs[..., :n_qubits]
+        edge_angles = inputs[..., n_qubits:]
         
-        # inputs: [node_features (n_qubits) || edge_angles (n_qubits-1)]
-        node_inputs = inputs[:n_qubits]  # First n_qubits elements
-        edge_angles = inputs[n_qubits:]  # Remaining n_qubits-1 elements
-        
-        # Manual angle embedding for node features only
-        for i in range(n_qubits):
-            qml.RY(node_inputs[i], wires=i)
+        # Use AngleEmbedding for proper batching support
+        qml.AngleEmbedding(node_inputs, wires=range(n_qubits), rotation="Y")
         
         for layer in range(n_layers):
             # Multi-axis rotations
@@ -66,9 +60,8 @@ def build_vqc_edge(n_qubits, n_layers):
                 qml.RZ(weights[layer, i, 1], wires=i)
             
             # Edge-controlled entanglement
-            for i in range(len(edge_angles)):
-                if i < n_qubits - 1:  # Safety check
-                    qml.CRY(edge_angles[i], wires=[i, i + 1])
+            for i in range(n_qubits - 1):
+                qml.CRY(edge_angles[..., i], wires=[i, i + 1])
         
         return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
     

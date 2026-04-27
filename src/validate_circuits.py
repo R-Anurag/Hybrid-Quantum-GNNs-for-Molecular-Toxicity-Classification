@@ -26,7 +26,7 @@ def validate_circuit_logic():
     print(f"   Expected input: {n_qubits} features")
     print(f"   AngleEmbedding: {n_qubits} features -> {n_qubits} qubits")
     print(f"   RY gates: {n_layers} × {n_qubits} = {n_layers * n_qubits} parameters")
-    print(f"   CNOT gates: {n_qubits - 1} per layer")
+    print(f"   CNOT gates: {n_qubits * (n_qubits - 1) // 2} per layer")
     print(f"   Output: {n_qubits} expectation values")
     print(f"   ✓ Dimensions consistent")
     
@@ -36,7 +36,7 @@ def validate_circuit_logic():
     edge_features = n_qubits - 1
     total_input = node_features + edge_features
     print(f"   Expected input: {total_input} features ({node_features} node + {edge_features} edge)")
-    print(f"   Split: inputs[:4] for nodes, inputs[4:] for edges")
+    print(f"   Split: inputs[..., :4] for nodes, inputs[..., 4:] for edges")
     print(f"   AngleEmbedding: {node_features} features -> {n_qubits} qubits")
     print(f"   RY gates: {n_layers} × {n_qubits} = {n_layers * n_qubits} parameters")
     print(f"   CRY gates: {edge_features} per layer (controlled by edge features)")
@@ -121,9 +121,9 @@ def check_circuit_definitions():
             "build_vqc_edge function": "def build_vqc_edge(n_qubits, n_layers):" in content,
             "AngleEmbedding in standard": "qml.AngleEmbedding(inputs, wires=range(n_qubits)" in content,
             "AngleEmbedding in edge": "qml.AngleEmbedding(node_inputs, wires=range(n_qubits)" in content,
-            "Input splitting in edge": "node_inputs = inputs[:n_qubits]" in content,
-            "CRY gates in edge": "qml.CRY(edge_angles[i]" in content,
-            "CNOT gates in standard": "qml.CNOT(wires=[i, i + 1])" in content,
+            "Input splitting in edge": "node_inputs = inputs[..., :n_qubits]" in content,
+            "CRY gates in edge": "qml.CRY(edge_angles[..., i]" in content,
+            "CNOT gates in standard": "qml.CNOT(wires=[i, j])" in content,
         }
         
         all_passed = True
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         print("✓ ALL VALIDATIONS PASSED")
         print("\nThe bug has been fixed. Key changes:")
         print("  1. Separated build_vqc() and build_vqc_edge() functions")
-        print("  2. Edge variant splits input inside circuit: inputs[:n_qubits]")
+        print("  2. Edge variant splits the feature axis inside circuit: inputs[..., :n_qubits]")
         print("  3. Only node features passed to AngleEmbedding")
         print("  4. Edge features control CRY gate angles")
         print("\nYou can now run: python run_experiments.py")
