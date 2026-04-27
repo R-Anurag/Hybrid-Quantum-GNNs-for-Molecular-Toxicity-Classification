@@ -50,7 +50,9 @@ def build_vqc_edge(n_qubits, n_layers):
         node_inputs = inputs[:n_qubits]
         edge_angles = inputs[n_qubits:]
         
-        qml.AngleEmbedding(node_inputs, wires=range(n_qubits), rotation="Y")
+        # Manual angle embedding for node features only
+        for i in range(n_qubits):
+            qml.RY(node_inputs[i], wires=i)
         
         for layer in range(n_layers):
             # Multi-axis rotations
