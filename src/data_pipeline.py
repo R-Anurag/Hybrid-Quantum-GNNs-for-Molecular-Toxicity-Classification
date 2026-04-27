@@ -76,18 +76,28 @@ def smiles_to_data(smiles, labels):
 
 def load_dataset(name="tox21"):
     """Returns list of PyG Data objects and per-task class weights."""
-    import deepchem as dc
+    import pandas as pd
+    
+    data_dir = dc.utils.data_utils.get_data_dir()
     
     if name == "tox21":
-        tasks, datasets, _ = dc.molnet.load_tox21(featurizer=dc.feat.RawFeaturizer(), splitter=None)
+        url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/datasets/tox21.csv.gz'
+        dataset_file = dc.utils.data_utils.download_url(url, data_dir)
+        df = pd.read_csv(dataset_file)
+        tasks = ['NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD',
+                 'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53']
     elif name == "clintox":
-        tasks, datasets, _ = dc.molnet.load_clintox(featurizer=dc.feat.RawFeaturizer(), splitter=None)
+        url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.com/datasets/clintox.csv.gz'
+        dataset_file = dc.utils.data_utils.download_url(url, data_dir)
+        df = pd.read_csv(dataset_file)
+        tasks = ['FDA_APPROVED', 'CT_TOX']
     else:
         raise ValueError(f"Unknown dataset: {name}")
 
-    dataset = datasets[0]
     data_list = []
-    for smiles, labels in zip(dataset.ids, dataset.y):
+    for _, row in df.iterrows():
+        smiles = row['smiles']
+        labels = row[tasks].values
         d = smiles_to_data(smiles, labels)
         if d is not None:
             data_list.append(d)
