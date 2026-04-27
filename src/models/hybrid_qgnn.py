@@ -87,21 +87,20 @@ class HybridQGNN(nn.Module):
         # Project to qubit space and normalise to [-π, π]
         q_in = torch.tanh(self.proj(emb)) * 3.14159  # (B, n_qubits)
 
-        # Quantum forward
+        # Quantum forward - process one sample at a time for parameter-shift
+        B = emb.size(0)
         if self.edge_embed:
             # Mean-pool edge features per graph
             edge_feat = data.edge_attr  # (E, 4)
-            # Map each edge to its graph index via edge_index
             edge_batch = data.batch[data.edge_index[0]]  # (E,)
-            B = emb.size(0)
             pooled_edge = torch.zeros(B, 4, device=emb.device)
             pooled_edge.scatter_add_(0, edge_batch.unsqueeze(1).expand(-1, 4), edge_feat)
             counts = torch.bincount(edge_batch, minlength=B).float().clamp(min=1).unsqueeze(1)
             pooled_edge = pooled_edge / counts  # (B, 4)
             ep = self.edge_proj(pooled_edge)  # (B, n_qubits-1)
-            q_out = torch.stack([self.vqc(q_in[i], ep[i]) for i in range(emb.size(0))])
+            q_out = torch.stack([self.vqc(q_in[i], ep[i]) for i in range(B)])
         else:
-            q_out = self.vqc(q_in)  # (B, n_qubits)
+            q_out = torch.stack([self.vqc(q_in[i]) for i in range(B)])
 
         combined = torch.cat([emb, q_out], dim=-1)
         return self.classifier(combined)

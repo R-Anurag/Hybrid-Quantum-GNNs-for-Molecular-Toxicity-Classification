@@ -52,7 +52,8 @@ class QuantumOnly(nn.Module):
         # Project to qubit space and normalize to [-π, π]
         q_in = torch.tanh(self.proj(x_pooled)) * 3.14159  # (B, n_qubits)
 
-        # Quantum forward
-        q_out = self.vqc(q_in)  # (B, n_qubits)
+        # Quantum forward - process one sample at a time for parameter-shift
+        B = q_in.size(0)
+        q_out = torch.stack([self.vqc(q_in[i]) for i in range(B)])
 
         return self.classifier(q_out)
