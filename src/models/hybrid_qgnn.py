@@ -22,21 +22,26 @@ def build_vqc(n_qubits, n_layers, edge_embed=False):
                 for i in range(n_qubits - 1):
                     qml.CNOT(wires=[i, i + 1])
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
+        
+        weight_shapes = {"weights": (n_layers, n_qubits)}
     else:
         # Quantum edge embedding: bond features modulate CRY entangling angles
+        # Inputs: [node_features (n_qubits) || edge_features (n_qubits-1)]
         @qml.qnode(dev, interface="torch", diff_method="backprop")
-        def circuit(inputs, weights, edge_params):
-            qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
+        def circuit(inputs, weights):
+            # Split inputs into node and edge features
+            node_inputs = inputs[:n_qubits]
+            edge_inputs = inputs[n_qubits:]
+            
+            qml.AngleEmbedding(node_inputs, wires=range(n_qubits), rotation="Y")
             for layer in range(n_layers):
                 for i in range(n_qubits):
                     qml.RY(weights[layer, i], wires=i)
                 for i in range(n_qubits - 1):
-                    qml.CRY(edge_params[i], wires=[i, i + 1])
+                    qml.CRY(edge_inputs[i], wires=[i, i + 1])
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
-
-    weight_shapes = {"weights": (n_layers, n_qubits)}
-    if edge_embed:
-        weight_shapes["edge_params"] = (n_qubits - 1,)
+        
+        weight_shapes = {"weights": (n_layers, n_qubits)}
 
     return circuit, weight_shapes
 
@@ -98,8 +103,9 @@ class HybridQGNN(nn.Module):
             counts = torch.bincount(edge_batch, minlength=B).float().clamp(min=1).unsqueeze(1)
             pooled_edge = pooled_edge / counts  # (B, 4)
             ep = self.edge_proj(pooled_edge)  # (B, n_qubits-1)
-            # Note: edge_embed variant still needs sample-by-sample due to variable args
-            q_out = torch.stack([self.vqc(q_in[i], ep[i]) for i in range(B)])
+            # Concatenate node and edge features for VQC input
+            vqc_input = torch.cat([q_in, ep], dim=-1)  # (B, n_qubits + n_qubits-1)
+            q_out = self.vqc(vqc_input)  # (B, n_qubits)
         else:
             q_out = self.vqc(q_in)  # (B, n_qubits)
 
