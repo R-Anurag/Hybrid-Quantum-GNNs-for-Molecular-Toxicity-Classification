@@ -8,6 +8,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+*.egg
 
 # Virtual environments
 venv/
@@ -16,37 +17,71 @@ env/
 .env/
 myvenv311/
 myvenv/
+ENV/
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb
 
-# Model checkpoints & results (large files)
-checkpoints/*.pt
-checkpoints/*.pth
-checkpoints/*.ckpt
-results/*.csv
-results/*.png
-results/*.pdf
-
-# DeepChem / dataset cache
-~/.deepchem/
-*.sdf
-*.csv.gz
-
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-.vscode/
-.idea/
-*.swp
+# Model checkpoints & results
+checkpoints/
+results/
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.h5
 
 # Logs
 *.log
 wandb/
 runs/
+tb_logs/
+lightning_logs/
 
-# Reference docs (not needed in repo)
+# Dataset cache
+~/.deepchem/
+*.sdf
+*.csv.gz
+data/raw/
+data/processed/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+*.code-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+best_model.pt
+
+# Project specific
 project_reference/
+scratch/
+experiments/old/
