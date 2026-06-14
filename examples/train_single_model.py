@@ -121,7 +121,7 @@ def main():
             patience_counter = 0
             # Save best model
             torch.save(model.state_dict(), 'best_model.pt')
-            status = "★"
+            status = "*"
         else:
             patience_counter += 1
             status = " "

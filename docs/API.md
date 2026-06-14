@@ -1,99 +1,113 @@
-# API Documentation
+# API Reference
 
-## Module Overview
+## `src.data_pipeline`
 
-### `src.data_pipeline`
+Utilities for loading MoleculeNet datasets and converting molecules into graph data.
 
-Handles conversion of molecular SMILES to graph-structured data.
+### `load_tox21()`
 
-#### `load_tox21()`
-Load Tox21 dataset and return graph data, class weights, and task count.
+Loads the Tox21 dataset and returns graph samples, class weights, and the number of prediction tasks.
 
-#### `load_clintox()`
-Load ClinTox dataset and return graph data, class weights, and task count.
+### `load_clintox()`
 
-#### `smiles_to_graph(smiles: str, label: np.ndarray)`
-Convert SMILES string to PyTorch Geometric Data object with node/edge features.
+Loads the ClinTox dataset and returns graph samples, class weights, and the number of prediction tasks.
 
----
+### `smiles_to_graph(smiles, label)`
 
-### `src.models.gcn`
+Converts a SMILES string and label vector into a PyTorch Geometric `Data` object containing atom features, bond features, graph connectivity, and labels.
 
-Classical GCN baseline model.
+## `src.models.gcn`
 
-#### `GCN`
-3-layer Graph Convolutional Network with global mean pooling and MLP classifier.
+### `GCN`
 
-**Parameters:**
-- `in_channels`: Number of input node features
-- `hidden`: Hidden dimension (default: 64)
-- `embed_dim`: Graph embedding dimension (default: 32)
-- `num_tasks`: Number of prediction tasks
-- `dropout`: Dropout probability (default: 0.2)
+Classical graph convolutional network used as the baseline model.
 
----
+Constructor arguments:
 
-### `src.models.hybrid_qgnn`
+- `in_channels`: number of input node features.
+- `hidden`: hidden GCN dimension.
+- `embed_dim`: graph embedding dimension.
+- `num_tasks`: number of output toxicity tasks.
+- `dropout`: dropout probability.
 
-Hybrid quantum-classical GNN model.
+Key methods:
 
-#### `HybridQGNN`
-Combines GCN with variational quantum circuit for quantum feature encoding.
+- `encode(x, edge_index, batch)`: returns graph-level embeddings.
+- `forward(data)`: returns prediction logits.
 
-**Parameters:**
-- `in_channels`: Number of input node features
-- `gcn_hidden`: GCN hidden dimension (default: 64)
-- `gcn_embed`: Classical embedding dimension (default: 32)
-- `n_qubits`: Number of qubits (default: 4)
-- `n_layers`: Quantum circuit layers (default: 2)
-- `num_tasks`: Number of prediction tasks
-- `dropout`: Dropout probability (default: 0.2)
-- `edge_embed`: Use quantum edge embedding (default: False)
+## `src.models.hybrid_qgnn`
 
----
+### `HybridQGNN`
 
-### `src.train`
+Hybrid model combining a GCN encoder with a variational quantum circuit.
 
-Training and validation functions.
+Constructor arguments:
 
-#### `train_epoch()`
-Train model for one epoch with masked BCE loss and gradient clipping.
+- `in_channels`: number of input node features.
+- `gcn_hidden`: hidden GCN dimension.
+- `gcn_embed`: graph embedding dimension.
+- `n_qubits`: number of qubits in the quantum circuit.
+- `n_layers`: number of variational circuit layers.
+- `num_tasks`: number of output toxicity tasks.
+- `dropout`: dropout probability.
+- `edge_embed`: whether to include pooled bond features in the quantum branch.
 
-#### `validate()`
-Validate model and compute loss and ROC-AUC metrics.
+The forward pass returns prediction logits for each task.
 
----
+## `src.models.quantum_only`
 
-### `src.evaluate`
+### `QuantumOnly`
 
-Evaluation and cross-validation utilities.
+Baseline model that uses a GCN encoder and quantum circuit but classifies only from quantum features.
 
-#### `cross_validate()`
-Perform k-fold cross-validation and return mean/std metrics.
+Constructor arguments:
 
-#### `compute_metrics()`
-Compute ROC-AUC and F1-score handling missing labels.
+- `in_channels`: number of input node features.
+- `n_qubits`: number of qubits in the quantum circuit.
+- `n_layers`: number of variational circuit layers.
+- `num_tasks`: number of output toxicity tasks.
+- `dropout`: dropout probability.
 
----
+## `src.train`
 
-## Usage Example
+### `train_epoch(model, loader, optimizer, class_weights, device)`
+
+Runs one training epoch and returns loss and timing information.
+
+### `validate(model, loader, class_weights, device)`
+
+Evaluates a model on a validation loader and returns validation loss and ROC-AUC.
+
+## `src.evaluate`
+
+### `cross_validate(...)`
+
+Runs k-fold cross-validation for a model configuration and returns aggregated metrics.
+
+### `compute_metrics(...)`
+
+Computes evaluation metrics while handling missing labels.
+
+## Example
 
 ```python
 from src.data_pipeline import load_tox21
-from src.models import HybridQGNN
 from src.evaluate import cross_validate
+from src.models import HybridQGNN
 
-# Load data
 data_list, class_weights, num_tasks = load_tox21()
 
-# Run cross-validation
 results = cross_validate(
     model_class=HybridQGNN,
-    model_kwargs={'in_channels': 9, 'n_qubits': 4, 'num_tasks': num_tasks},
+    model_kwargs={
+        "in_channels": data_list[0].x.shape[1],
+        "n_qubits": 4,
+        "num_tasks": num_tasks,
+    },
     data_list=data_list,
     class_weights=class_weights,
-    n_splits=5
+    n_splits=5,
 )
 
-print(f"ROC-AUC: {results['roc_auc_mean']:.3f} ± {results['roc_auc_std']:.3f}")
+print(results)
 ```
