@@ -12,12 +12,9 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name="hybrid-qgnn",
     version="1.0.0",
-    author="Aishwarya J A, Anurag Rai, Dasiga Venkata Ashish Kumar, G Nithish",
-    author_email="",
     description="Hybrid Quantum Graph Neural Networks for Molecular Toxicity Classification",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/R-Anurag/Hybrid-Quantum-GNNs-for-Molecular-Toxicity-Classification",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

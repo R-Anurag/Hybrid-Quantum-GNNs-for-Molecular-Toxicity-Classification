@@ -12,8 +12,6 @@ from data_pipeline import compute_class_weights
 from train import mean_roc_auc, train
 
 
-# ── Per-batch inference ──────────────────────────────────────────────────────
-
 @torch.no_grad()
 def predict(model, data_list, batch_size=32, device="cpu"):
     model.eval()
@@ -27,8 +25,6 @@ def predict(model, data_list, batch_size=32, device="cpu"):
         targets.append(t.reshape(out.shape[0], -1))
     return np.vstack(preds), np.vstack(targets)
 
-
-# ── Metrics ──────────────────────────────────────────────────────────────────
 
 def compute_metrics(preds, targets):
     """Backward-compatible alias returning mean ROC-AUC only."""
@@ -74,24 +70,20 @@ def _train_val_split(train_idx, strat_labels, val_fraction, random_state):
     return shuffled[val_size:], shuffled[:val_size]
 
 
-# ── 5-fold CV ────────────────────────────────────────────────────────────────
-
 def cross_validate(model_fn, data_list, class_weights=None, n_splits=5,
                    epochs=100, lr=1e-3, batch_size=32, device="cpu", verbose=True,
                    checkpoint_dir=None, model_name="model", dataset_name="dataset",
                    early_stop_patience=20, weight_decay=1e-4, val_fraction=0.1,
                    random_state=42):
     """
-    model_fn: callable() → fresh model instance
+    model_fn: callable returning a fresh model instance.
     Returns dict with mean/std for ROC-AUC, actual epochs, and epoch time.
 
     class_weights is accepted for backward compatibility. Fold-specific weights
     are recomputed from each training split to avoid test-fold leakage.
     """
-    # Create stratification labels: use first task or composite for multi-task
     strat_labels = _stratification_labels(data_list)
     
-    # Use StratifiedKFold if we have valid labels
     if _can_stratify(strat_labels, n_splits):
         kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
         indices = np.arange(len(data_list))

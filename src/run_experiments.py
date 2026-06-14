@@ -2,8 +2,9 @@
 run_experiments.py
 Runs all 5 model variants on Tox21 and ClinTox and saves a results CSV.
 """
-import os, sys, json
-import torch
+import os
+import sys
+
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -75,8 +76,8 @@ def run_dataset(dataset_name):
             "epochs_std": results["epochs_std"],
         }
         rows.append(row)
-        print(f"  AUC={results['auc_mean']:.4f}±{results['auc_std']:.4f}  "
-              f"epochs={results['epochs_mean']:.1f}±{results['epochs_std']:.1f}  "
+        print(f"  AUC={results['auc_mean']:.4f}+/-{results['auc_std']:.4f}  "
+              f"epochs={results['epochs_mean']:.1f}+/-{results['epochs_std']:.1f}  "
               f"time/epoch={results['time_mean']:.2f}s")
 
     return rows

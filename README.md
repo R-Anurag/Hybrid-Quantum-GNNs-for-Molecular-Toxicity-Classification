@@ -5,24 +5,16 @@
 [![PennyLane](https://img.shields.io/badge/PennyLane-0.44%2B-green.svg)](https://pennylane.ai/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This repository benchmarks classical Graph Convolutional Networks against hybrid quantum-classical graph neural networks for molecular toxicity classification. Molecules are represented as graph-structured data derived from SMILES strings, processed with PyTorch Geometric, and evaluated on MoleculeNet toxicity datasets.
+This Machine Learning course project explores hybrid quantum graph neural networks for molecular toxicity classification. The code benchmarks classical Graph Convolutional Networks against hybrid quantum-classical graph neural networks using molecular graphs derived from SMILES strings and evaluated on MoleculeNet toxicity datasets.
 
 **Institution:** BMS Institute of Technology and Management, Department of Computer Science and Engineering  
 **Course:** Machine Learning - BCS602, Academic Year 2025-2026  
-**Supervisor:** Dr. Nagabhushan SV, Associate Professor
-
-| USN | Name |
-| --- | --- |
-| 1BY23CS014 | Aishwarya J A |
-| 1BY23CS026 | Anurag Rai |
-| 1BY23CS053 | Dasiga Venkata Ashish Kumar |
-| 1BY23CS068 | G Nithish |
 
 ## Overview
 
-Molecular toxicity prediction is an important screening task in computational drug discovery. Conventional graph neural networks learn directly from atoms and bonds, while variational quantum circuits may provide an additional nonlinear feature transformation for graph-level molecular embeddings. This project studies whether that hybrid design improves classification performance, training stability, or model efficiency compared with a classical GCN baseline.
+Molecular toxicity prediction is an important screening task in computational drug discovery. In this project, I use graph neural networks to learn directly from atoms and bonds, then test whether a variational quantum circuit can add useful nonlinear feature transformations to graph-level molecular embeddings.
 
-The main research questions are:
+The main questions behind the work are:
 
 1. Do quantum-encoded graph embeddings improve toxicity prediction over a classical GCN baseline?
 2. How do 4-qubit and 8-qubit circuits compare in accuracy and computational cost?
@@ -58,7 +50,7 @@ Classical graph embedding       Variational quantum circuit
         Toxicity predictions
 ```
 
-Implemented model variants:
+The repository includes these model variants:
 
 | Model | Description |
 | --- | --- |
@@ -69,7 +61,7 @@ Implemented model variants:
 
 ## Datasets
 
-The experiments target standard MoleculeNet toxicity benchmarks.
+The experiments use standard MoleculeNet toxicity benchmarks.
 
 | Dataset | Samples | Tasks | Notes |
 | --- | ---: | ---: | --- |
@@ -81,7 +73,6 @@ Node features include atomic number, degree, formal charge, hybridization, aroma
 ## Installation
 
 ```bash
-git clone https://github.com/R-Anurag/Hybrid-Quantum-GNNs-for-Molecular-Toxicity-Classification.git
 cd Hybrid-Quantum-GNNs-for-Molecular-Toxicity-Classification
 
 python -m venv venv
@@ -139,13 +130,11 @@ python -m pytest tests
 |   `-- visualize_results.py
 |-- docs/
 |   |-- ARCHITECTURE.md
-|   |-- API.md
-|   `-- RESULTS.md
+|   `-- API.md
 |-- requirements.txt
 |-- requirements-dev.txt
 |-- setup.py
 |-- CITATION.bib
-|-- CONTRIBUTING.md
 `-- LICENSE
 ```
 
@@ -157,19 +146,16 @@ The quantum circuits use angle embedding, trainable RY/RZ rotations, and entangl
 
 ## Documentation
 
-Detailed notes are available in:
+Additional project notes are available in:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [API Reference](docs/API.md)
-- [Results Template](docs/RESULTS.md)
-- [Project Plan](PROJECT_PLAN.md)
 
 ## Citation
 
 ```bibtex
 @misc{hybridqgnn2025,
   title={Hybrid Quantum Graph Neural Networks for Molecular Toxicity Classification},
-  author={Aishwarya, J. A. and Rai, Anurag and Kumar, Dasiga Venkata Ashish and Nithish, G.},
   year={2025},
   institution={BMS Institute of Technology and Management}
 }

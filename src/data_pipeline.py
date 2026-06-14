@@ -1,6 +1,6 @@
 """
 data_pipeline.py
-Converts Tox21 / ClinTox SMILES → PyTorch Geometric Data objects.
+Converts Tox21 and ClinTox SMILES strings to PyTorch Geometric Data objects.
 """
 import numpy as np
 import torch
@@ -9,8 +9,6 @@ from rdkit import Chem
 from rdkit.Chem import rdchem
 from sklearn.utils.class_weight import compute_class_weight
 
-
-# ── Atom / Bond featurisers ──────────────────────────────────────────────────
 
 HYBRIDIZATION = [
     rdchem.HybridizationType.SP,
@@ -44,14 +42,11 @@ def bond_features(bond):
     return [int(bt == b) for b in BOND_TYPE]  # dim = 4
 
 
-# ── SMILES → PyG Data ────────────────────────────────────────────────────────
-
 def smiles_to_data(smiles, labels):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
     
-    # Skip molecules with no bonds (isolated atoms)
     if mol.GetNumBonds() == 0:
         return None
 
@@ -67,7 +62,6 @@ def smiles_to_data(smiles, labels):
     if edge_index:
         edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
         edge_attr = torch.tensor(edge_attr, dtype=torch.float)
-        # Validate edge indices
         assert edge_index.max() < x.size(0), "Invalid edge index detected"
     else:
         edge_index = torch.zeros((2, 0), dtype=torch.long)
@@ -76,8 +70,6 @@ def smiles_to_data(smiles, labels):
     y = torch.tensor(labels.astype(np.float32), dtype=torch.float).reshape(-1)
     return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
 
-
-# ── Dataset loaders ──────────────────────────────────────────────────────────
 
 def compute_class_weights(data_list):
     """Compute per-task class weights from a list of PyG Data objects."""
@@ -105,7 +97,6 @@ def load_dataset(name="tox21"):
     import requests
     from pathlib import Path
     
-    # Dataset metadata
     DATASETS = {
         "tox21": {
             "url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
@@ -123,26 +114,22 @@ def load_dataset(name="tox21"):
     
     config = DATASETS[name]
     
-    # Setup cache directory
     cache_dir = Path.home() / ".cache" / "hqgnn"
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file = cache_dir / f"{name}.csv.gz"
     
-    # Download if not cached
     if not cache_file.exists():
         print(f"Downloading {name} dataset...")
         response = requests.get(config["url"], timeout=60)
         response.raise_for_status()
         cache_file.write_bytes(response.content)
-        print(f"✓ Downloaded to {cache_file}")
+        print(f"Downloaded to {cache_file}")
     else:
-        print(f"✓ Using cached dataset: {cache_file}")
+        print(f"Using cached dataset: {cache_file}")
     
-    # Load CSV
     df = pd.read_csv(cache_file)
     tasks = config["tasks"]
     
-    # Convert to PyG Data objects
     data_list = []
     failed = 0
     for _, row in df.iterrows():
@@ -155,9 +142,8 @@ def load_dataset(name="tox21"):
             failed += 1
     
     if failed > 0:
-        print(f"⚠ Skipped {failed}/{len(df)} invalid SMILES")
+        print(f"Skipped {failed}/{len(df)} invalid SMILES")
     
-    # Per-task class weights (ignore NaN)
     class_weights = compute_class_weights(data_list)
     
     return data_list, class_weights, tasks

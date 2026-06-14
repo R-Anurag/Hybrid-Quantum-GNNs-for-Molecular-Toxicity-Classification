@@ -64,6 +64,7 @@ desktop.ini
 
 # Testing
 .pytest_cache/
+pytest-cache-files-*/
 .coverage
 htmlcov/
 .tox/
